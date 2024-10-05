@@ -49,7 +49,7 @@ public class Ghost : MonoBehaviour
     }
 
     void Update() {
-        if (playingDeathAnimation)
+        if (playingDeathAnimation || player.GhostDead)
             return;
 
         transform.localScale = Vector3.one * player.Scale;
@@ -57,7 +57,7 @@ public class Ghost : MonoBehaviour
         Color color = Color.Lerp(DARK_COLOR, Color.white, Mathf.Sqrt(scalePercent));
         if (player.SafePercent > 0f)
             color = Color.Lerp(color, Color.green, safePercent * .25f);
-        float alpha = Mathf.Min(1f, scalePercent * 2f + .5f);
+        float alpha = Mathf.Min(1f, scalePercent * 1.5f + .6f);
         color.a = alpha;
         outerImage.color = color;
 
@@ -80,7 +80,6 @@ public class Ghost : MonoBehaviour
         if (direction.magnitude > travelDistance)
             direction = direction.normalized * travelDistance;
         rectTransform.anchoredPosition = myPos + direction;
-        
     }
 
     private IEnumerator StartDeathAnimation() {
@@ -90,7 +89,10 @@ public class Ghost : MonoBehaviour
         yield return new WaitForSeconds(.5f);
         
         TextMeshProUGUI loseText = cover.transform.Find("LoseText").GetComponent<TextMeshProUGUI>();
+        TextMeshProUGUI loseRoundText = cover.transform.Find("LoseRound").GetComponent<TextMeshProUGUI>();
         loseText.color = Color.clear;
+        loseRoundText.color = Color.clear;
+        loseRoundText.text = $"Lost on\nWave {player.bulletHellSystem.RoundIndex}/{player.bulletHellSystem.roundCount}";
         Button button = cover.transform.Find("Button").GetComponent<Button>();
         button.gameObject.SetActive(false);
         cover.gameObject.SetActive(true);
@@ -98,10 +100,12 @@ public class Ghost : MonoBehaviour
         yield return new WaitForSeconds(.5f);
 
         LeanTween.value(loseText.gameObject, alpha => loseText.color = new Color(1, 1, 1, alpha), 0, 1, 1f).setEaseOutQuad();
-        yield return new WaitForSeconds(2f);
+        yield return new WaitForSeconds(1f);
+
+        LeanTween.value(loseText.gameObject, alpha => loseRoundText.color = new Color(1, 1, 1, alpha), 0, 1, 1f).setEaseOutQuad();
+        yield return new WaitForSeconds(1f);
 
         button.gameObject.SetActive(true);
-        button.onClick.AddListener(() => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex));
     }
 
     public bool IsOverUI() {
@@ -112,5 +116,14 @@ public class Ghost : MonoBehaviour
         List<RaycastResult> results = new();
         raycaster.Raycast(pointerData, results);
         return results.FindIndex(result => result.gameObject == gameObject) >= 0;
+    }
+
+    public void RestartScene() {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void NoMoreGhost() {
+        player.GhostDead = true;
+        LeanTween.scale(rectTransform, Vector3.zero, .7f).setEaseInBack();
     }
 }

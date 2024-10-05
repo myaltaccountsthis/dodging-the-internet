@@ -6,12 +6,12 @@ using UnityEngine;
 public class Player : MonoBehaviour
 {
     private const float MOVEMENT_SPEED = 5f;
-    private const float GHOST_SPEED = 180f;
+    private const float GHOST_SPEED = 100f;
     private const float STARTING_SCALE = .4f;
     private const float MAX_SCALE = 1.5f;
     private const float MAX_TIME_NO_HOVER = 2.5f;
     // Not actually the time but ok
-    private const float MAX_TIME_SAFE = .5f;
+    private const float MAX_TIME_SAFE = .8f;
     private static readonly float STARTING_SIZE = Mathf.Sqrt(STARTING_SCALE) - MAX_TIME_SAFE;
     private static readonly float MAX_SIZE = Mathf.Sqrt(MAX_SCALE);
     private static readonly float SIZE_RANGE = MAX_SIZE - STARTING_SIZE;
@@ -19,20 +19,23 @@ public class Player : MonoBehaviour
 
     public bool GameStarted { get; private set; }
     public bool IsAlive { get; private set; }
+    public bool GhostDead;
     public float Scale => Mathf.Max(STARTING_SCALE, size * size);
     public float ScalePercent => (Scale - STARTING_SCALE) / (MAX_SCALE - STARTING_SCALE);
     public float SafePercent => Mathf.Clamp(1 - (size - STARTING_SIZE) / MAX_TIME_SAFE, 0f, 1f);
-    public float GhostSpeed => GHOST_SPEED / Mathf.Sqrt(Scale) * (timeElapsed * timeElapsed / (100 * (timeElapsed + 60)) + 1);
+    public float GhostSpeed => GHOST_SPEED / Mathf.Sqrt(Scale) * (1 + .05f * bulletHellSystem.RoundIndex);
+
+    public Ghost ghost;
+    public BulletHellSystem bulletHellSystem;
+    // public GameObject gate;
+    public GameObject tutorial;
+    public AudioSource backgroundMusic, loseSound;
 
     private new Camera camera;
     private new Rigidbody2D rigidbody;
-    [SerializeField] private Ghost ghost;
-    [SerializeField] private GameObject gate;
-    [SerializeField] private GameObject tutorial;
 
     // Internal variable that Scale is based off of
     private float size;
-    private float timeElapsed;
 
     void Awake() {
         camera = Camera.main;
@@ -43,7 +46,7 @@ public class Player : MonoBehaviour
         size = STARTING_SIZE + MAX_TIME_SAFE;
         GameStarted = false;
         IsAlive = true;
-        timeElapsed = 0f;
+        GhostDead = false;
     }
 
     void Update() {
@@ -55,10 +58,11 @@ public class Player : MonoBehaviour
             if (!isHoveringGhost)
                 return;
             GameStarted = true;
-            Destroy(gate);
+            // Destroy(gate);
             tutorial.SetActive(false);
+            backgroundMusic.Play();
         }
-        if (!IsAlive)
+        if (!IsAlive || GhostDead)
             return;
         
         transform.localScale = Vector3.one * Scale;
@@ -69,16 +73,15 @@ public class Player : MonoBehaviour
             size += Time.deltaTime * SIZE_DELTA;
         }
         if (size > MAX_SIZE) {
-            IsAlive = false;
+            KillPlayer();
             size = MAX_SIZE;
         }
         else if (size < STARTING_SIZE)
             size = STARTING_SIZE;
-        timeElapsed += Time.deltaTime;
     }
 
     void FixedUpdate() {
-        if (!IsAlive)
+        if (!IsAlive || !GameStarted)
             return;
         Vector2 movement = new(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
         if (movement.magnitude > 1)
@@ -88,7 +91,13 @@ public class Player : MonoBehaviour
     }
 
     public void KillPlayer() {
+        if (!IsAlive)
+            return;
+
         IsAlive = false;
+        LeanTween.value(backgroundMusic.gameObject, val => backgroundMusic.volume = val, backgroundMusic.volume, 0, .8f)
+            .setOnComplete(() => backgroundMusic.Stop());
+        loseSound.Play();
     }
 
     public void CollectPowerup(Powerup powerup) {
